@@ -53,8 +53,8 @@ const NotesHistoryPage: React.FC<NotesHistoryPageProps> = ({ onViewNote, onNewMe
 
     if (loading) {
         return (
-            <div className="text-center">
-                <Spinner />
+            <div className="text-center flex flex-col items-center">
+                <Spinner className="text-slate-600" />
                 <p className="mt-2 text-slate-600">Loading your notes...</p>
             </div>
         );

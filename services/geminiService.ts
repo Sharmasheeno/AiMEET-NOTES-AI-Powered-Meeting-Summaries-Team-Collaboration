@@ -76,6 +76,44 @@ export const summarizeTranscription = async (transcription: string): Promise<Mee
     }
   } catch (error) {
     console.error("Error summarizing transcription with Gemini:", error);
-    throw new Error("An error occurred while generating the meeting summary.");
+    if (error instanceof Error && (error.message.toLowerCase().includes('fetch failed') || error.message.toLowerCase().includes('network'))) {
+        throw new Error("Summarization failed due to a network issue. Please check your internet connection and try again.");
+    }
+    throw new Error("An error occurred while generating the meeting summary. The AI service may be temporarily unavailable.");
+  }
+};
+
+
+export const generateImageFromPrompt = async (prompt: string, aspectRatio: string): Promise<string> => {
+  if (!prompt.trim()) {
+    throw new Error("Prompt cannot be empty.");
+  }
+  
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+  
+  try {
+    const response = await ai.models.generateImages({
+        model: 'imagen-4.0-generate-001',
+        prompt: prompt,
+        config: {
+          numberOfImages: 1,
+          outputMimeType: 'image/jpeg',
+          aspectRatio: aspectRatio as "1:1" | "3:4" | "4:3" | "9:16" | "16:9",
+        },
+    });
+
+    if (response.generatedImages && response.generatedImages.length > 0) {
+        const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
+        return base64ImageBytes;
+    } else {
+        throw new Error("Image generation failed. The model did not return an image.");
+    }
+
+  } catch (error) {
+    console.error("Error generating image with Gemini:", error);
+    if (error instanceof Error && error.message.includes('prompt was blocked')) {
+        throw new Error("The prompt was blocked for safety reasons. Please modify your prompt and try again.");
+    }
+    throw new Error("An error occurred while generating the image.");
   }
 };

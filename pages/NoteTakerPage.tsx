@@ -20,11 +20,27 @@ declare global {
 }
 
 type AppState = 'idle' | 'recording' | 'processing' | 'results' | 'error';
+type PermissionStatus = 'prompt' | 'granted' | 'denied';
 
 interface NoteTakerPageProps {
     session: Session;
     onViewHistory: () => void;
 }
+
+const MicrophoneIcon: React.FC = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-12 w-12 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
+        <path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z" />
+        <path fillRule="evenodd" d="M3 8a1 1 0 011-1h1v2a4 4 0 004 4h.01a4 4 0 004-4V7h1a1 1 0 110 2h-1.07a5.002 5.002 0 01-8.86 0H4a1 1 0 01-1-1z" clipRule="evenodd" />
+    </svg>
+);
+
+const MicrophoneSlashIcon: React.FC = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-12 w-12 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 5l14 14" />
+    </svg>
+);
+
 
 const NoteTakerPage: React.FC<NoteTakerPageProps> = ({ session, onViewHistory }) => {
   const [appState, setAppState] = useState<AppState>('idle');
@@ -32,21 +48,31 @@ const NoteTakerPage: React.FC<NoteTakerPageProps> = ({ session, onViewHistory })
   const [transcription, setTranscription] = useState<string>('');
   const [finalTranscription, setFinalTranscription] = useState<string>('');
   const [meetingNotes, setMeetingNotes] = useState<MeetingNotes | null>(null);
+  const [permissionStatus, setPermissionStatus] = useState<PermissionStatus>('prompt');
   
   const recognitionRef = useRef<any>(null);
   const accumulatedTranscriptRef = useRef<string>('');
   const isStoppingRef = useRef<boolean>(false);
   const appStateRef = useRef(appState);
-  const transcriptionRef = useRef(transcription);
+  const transcriptionRef = useRef('');
 
   useEffect(() => {
     appStateRef.current = appState;
   }, [appState]);
 
+  // Check microphone permission status on component mount
   useEffect(() => {
-    transcriptionRef.current = transcription;
-  }, [transcription]);
-
+      if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions.query({ name: 'microphone' as PermissionName }).then((permission) => {
+          setPermissionStatus(permission.state as PermissionStatus);
+          permission.onchange = () => {
+            setPermissionStatus(permission.state as PermissionStatus);
+          };
+        }).catch(() => {
+            console.warn("Permissions API not fully supported. Relying on user action to trigger prompt.");
+        });
+      }
+  }, []);
 
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -71,46 +97,47 @@ const NoteTakerPage: React.FC<NoteTakerPageProps> = ({ session, onViewHistory })
             }
         }
         accumulatedTranscriptRef.current = finalTranscript;
-        setTranscription(finalTranscript + interimTranscript);
+        const currentTranscript = finalTranscript + interimTranscript;
+        // Update the ref directly to avoid race conditions with React state updates
+        transcriptionRef.current = currentTranscript;
+        setTranscription(currentTranscript);
     };
     
     recognition.onerror = (event: any) => {
-        // The 'network' and 'no-speech' errors are common and recoverable.
-        // The 'onend' event will handle restarting the recognition service,
-        // so we can just log them for info and not put the app into a full error state.
-        if (event.error === 'network' || event.error === 'no-speech') {
-            console.log(`Speech recognition notice: ${event.error}. Attempting to recover.`);
+        // These are often transient and the recognition service might recover.
+        // We can log them but avoid showing a disruptive error to the user.
+        if (event.error === 'network' || event.error === 'no-speech' || event.error === 'aborted') {
+            console.warn(`Speech recognition notice: ${event.error}.`);
             return;
         }
 
-        console.error("SpeechRecognition error:", event.error);
-        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-            const errorMessage = 'Microphone access was denied. Please allow microphone access in your browser settings to use this feature.';
-            setError(errorMessage);
-            setAppState('error');
-        } else {
-            const errorMessage = `An unexpected error occurred with speech recognition: ${event.error}.`;
-            setError(errorMessage);
-            setAppState('error');
+        console.error("SpeechRecognition error:", event.error, event.message);
+
+        let errorMessage = `An unexpected error occurred during transcription: ${event.error}.`;
+        switch (event.error) {
+            case 'not-allowed':
+            case 'service-not-allowed':
+                errorMessage = 'Microphone access was denied. To enable transcription, please allow microphone access in your browser settings.';
+                break;
+            case 'audio-capture':
+                errorMessage = 'No microphone was found. Please ensure your microphone is connected and working correctly.';
+                break;
         }
+        setError(errorMessage);
+        setAppState('error');
     };
 
     recognition.onend = async () => {
         if (isStoppingRef.current) {
-            // This logic runs when recording is manually stopped.
-            // Use the latest transcription from the ref, which includes interim results,
-            // to prevent data loss if the user stops recording before the final result is processed.
             const finalTranscriptToProcess = transcriptionRef.current;
             setFinalTranscription(finalTranscriptToProcess);
             
-            // If no speech was detected, show a helpful error instead of the results page.
             if (!finalTranscriptToProcess.trim()) {
                 setError("We didn't catch any audio. Please make sure your microphone is working and try recording again.");
                 setAppState('error');
                 return;
             }
 
-            // If there is a transcript, proceed with summarization and saving.
             try {
                 const notes = await summarizeTranscription(finalTranscriptToProcess);
                 setMeetingNotes(notes);
@@ -128,7 +155,7 @@ const NoteTakerPage: React.FC<NoteTakerPageProps> = ({ session, onViewHistory })
                     ]);
 
                 if (dbError) {
-                    throw new Error(`Failed to save notes: ${dbError.message}`);
+                    throw new Error(`Your notes were summarized, but could not be saved to your history due to a network or database issue. Please try again.`);
                 }
 
                 setAppState('results');
@@ -138,7 +165,6 @@ const NoteTakerPage: React.FC<NoteTakerPageProps> = ({ session, onViewHistory })
                 setAppState('error');
             }
         } else if (appStateRef.current === 'recording') {
-            // Service stopped unexpectedly while recording, so restart it.
             console.log("Speech recognition service ended unexpectedly, restarting...");
             try {
                 recognition.start();
@@ -152,7 +178,6 @@ const NoteTakerPage: React.FC<NoteTakerPageProps> = ({ session, onViewHistory })
     
     recognitionRef.current = recognition;
 
-    // Cleanup on unmount
     return () => {
         isStoppingRef.current = true;
         if(recognitionRef.current) {
@@ -166,6 +191,7 @@ const NoteTakerPage: React.FC<NoteTakerPageProps> = ({ session, onViewHistory })
       accumulatedTranscriptRef.current = '';
       isStoppingRef.current = false;
       setTranscription('');
+      transcriptionRef.current = '';
       setFinalTranscription('');
       setMeetingNotes(null);
       setError(null);
@@ -193,7 +219,7 @@ const NoteTakerPage: React.FC<NoteTakerPageProps> = ({ session, onViewHistory })
     setFinalTranscription('');
     setMeetingNotes(null);
     setError(null);
-    isStoppingRef.current = true; // Ensure recognition doesn't restart
+    isStoppingRef.current = true;
     if (recognitionRef.current) {
       recognitionRef.current.stop();
     }
@@ -202,6 +228,48 @@ const NoteTakerPage: React.FC<NoteTakerPageProps> = ({ session, onViewHistory })
   const renderContent = () => {
     switch(appState) {
       case 'idle':
+        if (permissionStatus === 'denied') {
+            return (
+                <div className="text-center animate-fade-in max-w-xl mx-auto bg-white p-8 rounded-xl border border-slate-200 shadow-lg">
+                    <MicrophoneSlashIcon />
+                    <h2 className="text-2xl font-bold text-slate-800 mt-4 mb-2">Microphone Access Blocked</h2>
+                    <p className="text-slate-600 mb-6">
+                        You have blocked microphone access. To use the transcriber, please enable it in your browser's site settings and refresh the page.
+                    </p>
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                        <button
+                            disabled
+                            className="bg-slate-400 text-white font-bold py-4 px-8 rounded-full text-lg cursor-not-allowed"
+                        >
+                            Start Recording
+                        </button>
+                         <button
+                            onClick={onViewHistory}
+                            className="bg-white hover:bg-slate-100 text-slate-700 font-bold py-4 px-8 rounded-full text-lg transition-all transform hover:scale-105 shadow-lg border border-slate-300"
+                        >
+                            View History
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+        if (permissionStatus === 'prompt') {
+            return (
+                <div className="text-center animate-fade-in max-w-xl mx-auto bg-white p-8 rounded-xl border border-slate-200 shadow-lg">
+                    <MicrophoneIcon />
+                    <h2 className="text-2xl font-bold text-slate-800 mt-4 mb-2">Ready to Transcribe?</h2>
+                    <p className="text-slate-600 mb-6">
+                        To begin, please grant microphone access when prompted. This allows AiMEET NOTES to capture your conversation for live transcription.
+                    </p>
+                    <button
+                        onClick={handleStartRecording}
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-full text-lg transition-all transform hover:scale-105 shadow-lg"
+                    >
+                        Enable Microphone
+                    </button>
+                </div>
+            );
+        }
         return (
           <div className="text-center animate-fade-in">
             <p className="text-lg text-slate-600 mb-8 max-w-xl mx-auto">
@@ -252,8 +320,8 @@ const NoteTakerPage: React.FC<NoteTakerPageProps> = ({ session, onViewHistory })
         );
       case 'processing':
         return (
-          <div className="text-center animate-fade-in">
-            <Spinner />
+          <div className="text-center animate-fade-in flex flex-col items-center">
+            <Spinner className="text-slate-600" />
             <p className="text-xl mt-4 text-slate-600">
               Processing and saving your notes...
             </p>

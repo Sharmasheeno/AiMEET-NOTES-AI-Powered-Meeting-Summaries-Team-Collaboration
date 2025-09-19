@@ -98,8 +98,8 @@ const NoteDetailPage: React.FC<NoteDetailPageProps> = ({ noteId, onBack }) => {
 
     if (loading) {
         return (
-            <div className="text-center">
-                <Spinner />
+            <div className="text-center flex flex-col items-center">
+                <Spinner className="text-slate-600" />
                 <p className="mt-2 text-slate-600">Loading note details...</p>
             </div>
         );

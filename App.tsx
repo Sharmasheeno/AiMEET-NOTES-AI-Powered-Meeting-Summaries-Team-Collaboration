@@ -10,10 +10,11 @@ import AuthPage from './pages/AuthPage';
 import NoteTakerPage from './pages/NoteTakerPage';
 import NotesHistoryPage from './pages/NotesHistoryPage';
 import NoteDetailPage from './pages/NoteDetailPage';
+import ImageGeneratorPage from './pages/ImageGeneratorPage';
 import Header from './components/Header';
 import ConfigurationNeeded from './components/ConfigurationNeeded';
 
-type AppView = 'note_taker' | 'history' | 'note_detail';
+type AppView = 'note_taker' | 'history' | 'note_detail' | 'image_generator';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<Session | null>(null);
@@ -56,6 +57,11 @@ const App: React.FC = () => {
     setView('note_taker');
     setSelectedNoteId(null);
   }
+  
+  const handleNavigateToImageGenerator = () => {
+    setView('image_generator');
+    setSelectedNoteId(null);
+  }
 
   const handleViewNoteDetail = (noteId: number) => {
     setSelectedNoteId(noteId);
@@ -76,6 +82,8 @@ const App: React.FC = () => {
         return <NotesHistoryPage onViewNote={handleViewNoteDetail} onNewMeeting={handleNavigateToNoteTaker} />;
       case 'note_detail':
         return <NoteDetailPage noteId={selectedNoteId!} onBack={handleNavigateToHistory} />;
+      case 'image_generator':
+        return <ImageGeneratorPage />;
       case 'note_taker':
       default:
         return <NoteTakerPage session={session} onViewHistory={handleNavigateToHistory} />;
@@ -88,7 +96,15 @@ const App: React.FC = () => {
   
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center p-4 sm:p-8">
-      {isSupabaseInitialized && <Header session={session} />}
+      {isSupabaseInitialized && (
+        <Header 
+          session={session}
+          currentView={view}
+          onNavigateToNoteTaker={handleNavigateToNoteTaker}
+          onNavigateToHistory={handleNavigateToHistory}
+          onNavigateToImageGenerator={handleNavigateToImageGenerator}
+        />
+      )}
       <main className="w-full flex-grow flex items-center justify-center">
         {renderContent()}
       </main>
