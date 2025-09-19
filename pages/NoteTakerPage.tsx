@@ -34,6 +34,14 @@ const NoteTakerPage: React.FC<NoteTakerPageProps> = ({ session, onViewHistory })
   const [meetingNotes, setMeetingNotes] = useState<MeetingNotes | null>(null);
   
   const recognitionRef = useRef<any>(null);
+  const accumulatedTranscriptRef = useRef<string>('');
+  const isStoppingRef = useRef<boolean>(false);
+  const appStateRef = useRef(appState);
+
+  useEffect(() => {
+    appStateRef.current = appState;
+  }, [appState]);
+
 
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -47,76 +55,51 @@ const NoteTakerPage: React.FC<NoteTakerPageProps> = ({ session, onViewHistory })
     recognition.continuous = true;
     recognition.interimResults = true;
     
-    let accumulatedFinalTranscript = '';
     recognition.onresult = (event: any) => {
         let interimTranscript = '';
+        let finalTranscript = accumulatedTranscriptRef.current;
         for (let i = event.resultIndex; i < event.results.length; ++i) {
             if (event.results[i].isFinal) {
-                accumulatedFinalTranscript += event.results[i][0].transcript;
+                finalTranscript += event.results[i][0].transcript;
             } else {
                 interimTranscript += event.results[i][0].transcript;
             }
         }
-        setTranscription(accumulatedFinalTranscript + interimTranscript);
+        accumulatedTranscriptRef.current = finalTranscript;
+        setTranscription(finalTranscript + interimTranscript);
     };
     
     recognition.onerror = (event: any) => {
         console.error("SpeechRecognition error:", event.error);
-        setError(`An error occurred during speech recognition: ${event.error}`);
-        setAppState('error');
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+            const errorMessage = 'Microphone access was denied. Please allow microphone access in your browser settings to use this feature.';
+            setError(errorMessage);
+            setAppState('error');
+        } else if (event.error !== 'network' && event.error !== 'no-speech') {
+            const errorMessage = `An unexpected error occurred with speech recognition: ${event.error}.`;
+            setError(errorMessage);
+            setAppState('error');
+        }
     };
 
-    recognition.onend = () => {
-        // When recognition stops, save the final accumulated transcript
-        setFinalTranscription(accumulatedFinalTranscript);
-    }
-    
-    recognitionRef.current = recognition;
+    recognition.onend = async () => {
+        if (isStoppingRef.current) {
+            // This logic runs when recording is manually stopped.
+            const finalTranscriptToProcess = accumulatedTranscriptRef.current;
+            setFinalTranscription(finalTranscriptToProcess);
+            
+            // If no speech was detected, show a helpful error instead of the results page.
+            if (!finalTranscriptToProcess.trim()) {
+                setError("We didn't catch any audio. Please make sure your microphone is working and try recording again.");
+                setAppState('error');
+                return;
+            }
 
-    // Cleanup on unmount
-    return () => {
-        if(recognitionRef.current) {
-            recognitionRef.current.stop();
-        }
-    }
-  }, []);
-  
-  const handleStartRecording = useCallback(() => {
-    if (recognitionRef.current) {
-      setTranscription('');
-      setFinalTranscription('');
-      setMeetingNotes(null);
-      setError(null);
-      try {
-        recognitionRef.current.start();
-        setAppState('recording');
-      } catch (err) {
-         setError("Recording could not be started. Please ensure microphone permissions are granted.");
-         setAppState('error');
-      }
-    }
-  }, []);
-  
-  const handleStopRecording = useCallback(async () => {
-    if (recognitionRef.current) {
-        recognitionRef.current.stop();
-        setAppState('processing');
-        try {
-            // A short delay to allow the final transcript to process from onend event
-            setTimeout(async () => {
-                // Use the state that was updated by the onend event
-                const finalTranscriptToProcess = finalTranscription || transcription;
-                
-                if (!finalTranscriptToProcess.trim()) {
-                    setMeetingNotes({ summary: "No speech was detected.", actionItems: [], keyDecisions: [] });
-                    setAppState('results');
-                    return;
-                }
-
+            // If there is a transcript, proceed with summarization and saving.
+            try {
                 const notes = await summarizeTranscription(finalTranscriptToProcess);
                 setMeetingNotes(notes);
 
-                // Save notes to Supabase
                 const { error: dbError } = await supabase
                     .from('notes')
                     .insert([
@@ -134,15 +117,60 @@ const NoteTakerPage: React.FC<NoteTakerPageProps> = ({ session, onViewHistory })
                 }
 
                 setAppState('results');
-            }, 500);
-
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
-            setError(errorMessage);
-            setAppState('error');
+            } catch (err) {
+                const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+                setError(errorMessage);
+                setAppState('error');
+            }
+        } else if (appStateRef.current === 'recording') {
+            // Service stopped unexpectedly while recording, so restart it.
+            console.log("Speech recognition service ended unexpectedly, restarting...");
+            try {
+                recognition.start();
+            } catch (e) {
+                console.error("Error restarting recognition:", e);
+                setError("The speech recognition service stopped and could not be restarted. Please try again.");
+                setAppState('error');
+            }
         }
     }
-  }, [transcription, finalTranscription, session.user.id]);
+    
+    recognitionRef.current = recognition;
+
+    // Cleanup on unmount
+    return () => {
+        isStoppingRef.current = true;
+        if(recognitionRef.current) {
+            recognitionRef.current.stop();
+        }
+    }
+  }, [session.user.id]);
+  
+  const handleStartRecording = useCallback(() => {
+    if (recognitionRef.current) {
+      accumulatedTranscriptRef.current = '';
+      isStoppingRef.current = false;
+      setTranscription('');
+      setFinalTranscription('');
+      setMeetingNotes(null);
+      setError(null);
+      try {
+        recognitionRef.current.start();
+        setAppState('recording');
+      } catch (err) {
+         setError("Recording could not be started. Please ensure microphone permissions are granted.");
+         setAppState('error');
+      }
+    }
+  }, []);
+  
+  const handleStopRecording = useCallback(async () => {
+    if (recognitionRef.current) {
+        isStoppingRef.current = true;
+        recognitionRef.current.stop();
+        setAppState('processing');
+    }
+  }, []);
 
   const handleReset = useCallback(() => {
     setAppState('idle');
@@ -150,6 +178,10 @@ const NoteTakerPage: React.FC<NoteTakerPageProps> = ({ session, onViewHistory })
     setFinalTranscription('');
     setMeetingNotes(null);
     setError(null);
+    isStoppingRef.current = true; // Ensure recognition doesn't restart
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
   }, []);
 
   const renderContent = () => {

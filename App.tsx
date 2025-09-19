@@ -4,13 +4,14 @@
 */
 
 import React, { useState, useEffect } from 'react';
-import { supabase } from './services/supabaseClient';
+import { supabase, isSupabaseInitialized } from './services/supabaseClient';
 import type { Session } from '@supabase/supabase-js';
 import AuthPage from './pages/AuthPage';
 import NoteTakerPage from './pages/NoteTakerPage';
 import NotesHistoryPage from './pages/NotesHistoryPage';
 import NoteDetailPage from './pages/NoteDetailPage';
 import Header from './components/Header';
+import ConfigurationNeeded from './components/ConfigurationNeeded';
 
 type AppView = 'note_taker' | 'history' | 'note_detail';
 
@@ -21,6 +22,11 @@ const App: React.FC = () => {
   const [selectedNoteId, setSelectedNoteId] = useState<number | null>(null);
 
   useEffect(() => {
+    if (!isSupabaseInitialized) {
+      setLoading(false);
+      return;
+    }
+
     const getSession = async () => {
         const { data: { session } } = await supabase.auth.getSession();
         setSession(session);
@@ -57,6 +63,10 @@ const App: React.FC = () => {
   };
 
   const renderContent = () => {
+    if (!isSupabaseInitialized) {
+      return <ConfigurationNeeded />;
+    }
+
     if (!session) {
       return <AuthPage />;
     }
@@ -71,14 +81,14 @@ const App: React.FC = () => {
         return <NoteTakerPage session={session} onViewHistory={handleNavigateToHistory} />;
     }
   };
-
+  
   if (loading) {
     return null; // Or a loading spinner for the whole page
   }
   
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center p-4 sm:p-8">
-      <Header session={session} />
+      {isSupabaseInitialized && <Header session={session} />}
       <main className="w-full flex-grow flex items-center justify-center">
         {renderContent()}
       </main>

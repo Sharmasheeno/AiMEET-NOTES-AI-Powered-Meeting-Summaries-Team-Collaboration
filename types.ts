@@ -9,7 +9,7 @@ export interface MeetingNotes {
   keyDecisions: string[];
 }
 
-// FIX: Add the missing 'Product' interface, which is used by ObjectCard and ProductSelector components.
+// FIX: Add missing Product interface.
 export interface Product {
   id: string | number;
   name: string;
