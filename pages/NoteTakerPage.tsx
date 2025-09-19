@@ -37,10 +37,15 @@ const NoteTakerPage: React.FC<NoteTakerPageProps> = ({ session, onViewHistory })
   const accumulatedTranscriptRef = useRef<string>('');
   const isStoppingRef = useRef<boolean>(false);
   const appStateRef = useRef(appState);
+  const transcriptionRef = useRef(transcription);
 
   useEffect(() => {
     appStateRef.current = appState;
   }, [appState]);
+
+  useEffect(() => {
+    transcriptionRef.current = transcription;
+  }, [transcription]);
 
 
   useEffect(() => {
@@ -93,7 +98,9 @@ const NoteTakerPage: React.FC<NoteTakerPageProps> = ({ session, onViewHistory })
     recognition.onend = async () => {
         if (isStoppingRef.current) {
             // This logic runs when recording is manually stopped.
-            const finalTranscriptToProcess = accumulatedTranscriptRef.current;
+            // Use the latest transcription from the ref, which includes interim results,
+            // to prevent data loss if the user stops recording before the final result is processed.
+            const finalTranscriptToProcess = transcriptionRef.current;
             setFinalTranscription(finalTranscriptToProcess);
             
             // If no speech was detected, show a helpful error instead of the results page.
