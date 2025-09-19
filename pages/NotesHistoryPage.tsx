@@ -10,6 +10,7 @@ interface NoteRecord {
     id: number;
     created_at: string;
     summary: string;
+    title: string | null;
 }
 
 interface NotesHistoryPageProps {
@@ -24,33 +25,36 @@ const NotesHistoryPage: React.FC<NotesHistoryPageProps> = ({ onViewNote, onNewMe
 
     useEffect(() => {
         const fetchNotes = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
-                setError("You must be logged in to view your notes.");
-                setLoading(false);
-                return;
-            }
-
             try {
-                const { data, error } = await supabase
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) {
+                    throw new Error("You must be logged in to view your notes.");
+                }
+
+                // FIX: Renamed `error` to `dbError` to avoid shadowing.
+                const { data, error: dbError } = await supabase
                     .from('notes')
-                    .select('id, created_at, summary')
+                    .select('id, created_at, summary, title')
                     .eq('user_id', user.id)
                     .order('created_at', { ascending: false });
 
-                if (error) throw error;
+                if (dbError) throw dbError;
 
                 setNotes(data || []);
+            // FIX: The catch block now correctly handles `err`.
             } catch (err: any) {
                 setError(err.message || "Failed to fetch notes.");
+            // FIX: `finally` block correctly sets loading state.
             } finally {
                 setLoading(false);
             }
         };
 
+        // FIX: The fetchNotes function is called within the component scope.
         fetchNotes();
     }, []);
 
+    // FIX: The `loading` variable is now in scope.
     if (loading) {
         return (
             <div className="text-center flex flex-col items-center">
@@ -60,6 +64,7 @@ const NotesHistoryPage: React.FC<NotesHistoryPageProps> = ({ onViewNote, onNewMe
         );
     }
 
+    // FIX: The `error` variable is now in scope.
     if (error) {
         return <div className="text-center text-red-600">{error}</div>;
     }
@@ -88,6 +93,9 @@ const NotesHistoryPage: React.FC<NotesHistoryPageProps> = ({ onViewNote, onNewMe
                             onClick={() => onViewNote(note.id)}
                             className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-400 transition-all cursor-pointer"
                         >
+                            <h3 className="text-lg font-bold text-slate-800 truncate mb-1">
+                                {note.title || `Meeting on ${new Date(note.created_at).toLocaleDateString()}`}
+                            </h3>
                             <p className="text-sm font-semibold text-blue-600 mb-2">
                                 {new Date(note.created_at).toLocaleString()}
                             </p>

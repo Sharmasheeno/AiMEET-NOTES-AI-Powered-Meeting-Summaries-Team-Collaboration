@@ -160,7 +160,7 @@ const ImageUploader = forwardRef<HTMLImageElement, ImageUploaderProps>(({ id, la
   const isActionable = isDropZone || !imageUrl;
 
   const uploaderClasses = `w-full aspect-video bg-zinc-100 border-2 border-dashed rounded-lg flex items-center justify-center transition-all duration-300 relative overflow-hidden ${
-      showHoverState ? 'border-blue-500 bg-blue-50 is-dragging-over'
+      showHoverState ? 'border-blue-500 bg-blue-50 is-dragging-over shadow-xl ring-2 ring-blue-400'
     : isDropZone ? 'border-zinc-400 cursor-crosshair'
     : 'border-zinc-300 hover:border-blue-500 cursor-pointer'
   } ${!isActionable ? 'cursor-default' : ''}`;

@@ -15,6 +15,7 @@ interface NoteRecord extends MeetingNotes {
     transcription: string;
     actionItems: string[];
     keyDecisions: string[];
+    title: string | null;
 }
 
 interface NoteDetailPageProps {
@@ -114,6 +115,14 @@ const NoteDetailPage: React.FC<NoteDetailPageProps> = ({ noteId, onBack }) => {
             {note && (
                 <>
                     <div className="w-full max-w-6xl mx-auto mb-8">
+                       <div className="mb-6">
+                            <h1 className="text-3xl font-extrabold text-slate-800 break-words">
+                                {note.title || `Meeting Notes`}
+                            </h1>
+                            <p className="text-md text-slate-500 mt-1">
+                                {new Date(note.created_at).toLocaleString()}
+                            </p>
+                        </div>
                        <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                             <button
                                 onClick={onBack}

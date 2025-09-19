@@ -49,6 +49,7 @@ const NoteTakerPage: React.FC<NoteTakerPageProps> = ({ session, onViewHistory })
   const [finalTranscription, setFinalTranscription] = useState<string>('');
   const [meetingNotes, setMeetingNotes] = useState<MeetingNotes | null>(null);
   const [permissionStatus, setPermissionStatus] = useState<PermissionStatus>('prompt');
+  const [meetingTitle, setMeetingTitle] = useState<string>('');
   
   const recognitionRef = useRef<any>(null);
   const accumulatedTranscriptRef = useRef<string>('');
@@ -146,7 +147,8 @@ const NoteTakerPage: React.FC<NoteTakerPageProps> = ({ session, onViewHistory })
                     .from('notes')
                     .insert([
                         { 
-                            user_id: session.user.id, 
+                            user_id: session.user.id,
+                            title: meetingTitle.trim() || null,
                             summary: notes.summary,
                             action_items: notes.actionItems,
                             key_decisions: notes.keyDecisions,
@@ -184,7 +186,7 @@ const NoteTakerPage: React.FC<NoteTakerPageProps> = ({ session, onViewHistory })
             recognitionRef.current.stop();
         }
     }
-  }, [session.user.id]);
+  }, [session.user.id, meetingTitle]);
   
   const handleStartRecording = useCallback(() => {
     if (recognitionRef.current) {
@@ -219,6 +221,7 @@ const NoteTakerPage: React.FC<NoteTakerPageProps> = ({ session, onViewHistory })
     setFinalTranscription('');
     setMeetingNotes(null);
     setError(null);
+    setMeetingTitle('');
     isStoppingRef.current = true;
     if (recognitionRef.current) {
       recognitionRef.current.stop();
@@ -272,6 +275,19 @@ const NoteTakerPage: React.FC<NoteTakerPageProps> = ({ session, onViewHistory })
         }
         return (
           <div className="text-center animate-fade-in">
+             <div className="mb-8 max-w-xl mx-auto">
+                <label htmlFor="meeting-title" className="block text-lg font-semibold text-slate-700 mb-2">
+                    Meeting Title (Optional)
+                </label>
+                <input
+                    id="meeting-title"
+                    type="text"
+                    value={meetingTitle}
+                    onChange={(e) => setMeetingTitle(e.target.value)}
+                    placeholder="e.g., Q3 Project Kick-off"
+                    className="w-full p-3 border border-slate-300 rounded-lg text-md text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+                />
+            </div>
             <p className="text-lg text-slate-600 mb-8 max-w-xl mx-auto">
               Ready to capture your meeting? Click the button below to start recording. We'll provide a live transcript and a full AI-powered summary when you're done.
             </p>

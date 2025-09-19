@@ -22,11 +22,20 @@ body {
     }
 }
 
+@keyframes pulse-glow {
+    0%, 100% {
+        box-shadow: 0 0 8px rgba(0, 123, 255, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 16px rgba(0, 123, 255, 0.8);
+    }
+}
+
 /* Styles for Product Placement Feature */
 .drop-orb {
     position: absolute;
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
     background-color: rgba(0, 123, 255, 0.7);
     border: 2px solid white;
     border-radius: 50%;
@@ -40,6 +49,7 @@ body {
 .is-dragging-over .drop-orb {
     transform: translate(-50%, -50%) scale(1);
     opacity: 1;
+    animation: pulse-glow 1.5s infinite ease-in-out;
 }
 
 /* Utility to hide scrollbars */

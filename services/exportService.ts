@@ -8,6 +8,7 @@ import { MeetingNotes } from '../types';
 interface NoteData extends MeetingNotes {
     transcription: string;
     created_at: string;
+    title?: string | null;
 }
 
 // Function to create a downloadable file from text content
@@ -27,10 +28,13 @@ const createFilename = (date: string, extension: string) => {
 }
 
 export const exportAsMarkdown = (note: NoteData): void => {
-    const { summary, actionItems, keyDecisions, transcription, created_at } = note;
+    const { summary, actionItems, keyDecisions, transcription, created_at, title } = note;
     const meetingDate = new Date(created_at).toLocaleString();
+    const mainTitle = title ? `Meeting Notes: ${title}` : `Meeting Notes`;
 
-    let markdownContent = `# Meeting Notes - ${meetingDate}\n\n`;
+
+    let markdownContent = `# ${mainTitle}\n\n`;
+    markdownContent += `**Date:** ${meetingDate}\n\n`;
     markdownContent += `## Summary\n${summary}\n\n`;
 
     if (actionItems.length > 0) {
@@ -56,7 +60,7 @@ export const exportAsMarkdown = (note: NoteData): void => {
 };
 
 export const exportAsPdf = (note: NoteData): void => {
-    const { summary, actionItems, keyDecisions, transcription, created_at } = note;
+    const { summary, actionItems, keyDecisions, transcription, created_at, title } = note;
     const meetingDate = new Date(created_at).toLocaleString();
     const filename = createFilename(created_at, 'pdf');
 
@@ -103,7 +107,8 @@ export const exportAsPdf = (note: NoteData): void => {
     // Document Title
     doc.setFontSize(22);
     doc.setFont('helvetica', 'bold');
-    doc.text('Meeting Notes', pageWidth / 2, currentY, { align: 'center' });
+    const pdfTitle = title ? `Meeting Notes: ${title}` : 'Meeting Notes';
+    doc.text(pdfTitle, pageWidth / 2, currentY, { align: 'center' });
     currentY += 8;
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
