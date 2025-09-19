@@ -70,12 +70,20 @@ const NoteTakerPage: React.FC<NoteTakerPageProps> = ({ session, onViewHistory })
     };
     
     recognition.onerror = (event: any) => {
+        // The 'network' and 'no-speech' errors are common and recoverable.
+        // The 'onend' event will handle restarting the recognition service,
+        // so we can just log them for info and not put the app into a full error state.
+        if (event.error === 'network' || event.error === 'no-speech') {
+            console.log(`Speech recognition notice: ${event.error}. Attempting to recover.`);
+            return;
+        }
+
         console.error("SpeechRecognition error:", event.error);
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
             const errorMessage = 'Microphone access was denied. Please allow microphone access in your browser settings to use this feature.';
             setError(errorMessage);
             setAppState('error');
-        } else if (event.error !== 'network' && event.error !== 'no-speech') {
+        } else {
             const errorMessage = `An unexpected error occurred with speech recognition: ${event.error}.`;
             setError(errorMessage);
             setAppState('error');
