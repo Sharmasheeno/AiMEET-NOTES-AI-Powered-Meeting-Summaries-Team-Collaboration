@@ -1,0 +1,8 @@
+{
+  "name": "AiMEET NOTES",
+  "description": "Your intelligent meeting assistant for automated transcription, summarization, and action item tracking.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "prompt": ""
+}
