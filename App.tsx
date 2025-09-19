@@ -13,8 +13,11 @@ import NoteDetailPage from './pages/NoteDetailPage';
 import ImageGeneratorPage from './pages/ImageGeneratorPage';
 import Header from './components/Header';
 import ConfigurationNeeded from './components/ConfigurationNeeded';
+import GeminiConfigurationNeeded from './components/GeminiConfigurationNeeded';
 
 type AppView = 'note_taker' | 'history' | 'note_detail' | 'image_generator';
+
+const isGeminiConfigured = !!process.env.API_KEY;
 
 const App: React.FC = () => {
   const [session, setSession] = useState<Session | null>(null);
@@ -75,6 +78,10 @@ const App: React.FC = () => {
 
     if (!session) {
       return <AuthPage />;
+    }
+
+    if (!isGeminiConfigured) {
+        return <GeminiConfigurationNeeded />;
     }
 
     switch (view) {
