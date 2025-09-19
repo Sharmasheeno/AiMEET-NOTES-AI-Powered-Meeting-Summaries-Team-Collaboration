@@ -21,3 +21,32 @@ body {
         transform: translateY(0);
     }
 }
+
+/* Styles for Product Placement Feature */
+.drop-orb {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background-color: rgba(0, 123, 255, 0.7);
+    border: 2px solid white;
+    border-radius: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    pointer-events: none;
+    transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+    opacity: 0;
+    z-index: 10;
+}
+
+.is-dragging-over .drop-orb {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+}
+
+/* Utility to hide scrollbars */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+}

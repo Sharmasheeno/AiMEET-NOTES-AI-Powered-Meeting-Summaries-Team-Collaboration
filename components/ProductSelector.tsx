@@ -9,6 +9,7 @@ import ObjectCard from './ObjectCard';
 
 interface ProductSelectorProps {
     products: Product[];
+    selectedProduct: Product | null;
     onSelect: (product: Product) => void;
     onAddOwnProductClick: () => void;
 }
@@ -25,7 +26,7 @@ const ArrowRightIcon = () => (
     </svg>
 );
 
-const ProductSelector: React.FC<ProductSelectorProps> = ({ products, onSelect, onAddOwnProductClick }) => {
+const ProductSelector: React.FC<ProductSelectorProps> = ({ products, selectedProduct, onSelect, onAddOwnProductClick }) => {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [canScrollLeft, setCanScrollLeft] = useState(false);
     const [canScrollRight, setCanScrollRight] = useState(true);
@@ -44,17 +45,19 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({ products, onSelect, o
         const el = scrollContainerRef.current;
         if (!el) return;
 
-        // Initial check
         checkScrollButtons();
         
-        // Handle case where items don't fill the container
         if (el.scrollWidth <= el.clientWidth) {
             setCanScrollRight(false);
         }
 
+        const observer = new ResizeObserver(checkScrollButtons);
+        observer.observe(el);
+        
         el.addEventListener('scroll', checkScrollButtons);
         window.addEventListener('resize', checkScrollButtons);
         return () => {
+            observer.disconnect();
             el.removeEventListener('scroll', checkScrollButtons);
             window.removeEventListener('resize', checkScrollButtons);
         };
@@ -83,17 +86,28 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({ products, onSelect, o
                 </button>
                 <div
                     ref={scrollContainerRef}
-                    className="flex space-x-6 overflow-x-auto snap-x snap-mandatory py-4 scrollbar-hide"
+                    className="flex items-stretch space-x-4 overflow-x-auto snap-x snap-mandatory py-4 px-2 scrollbar-hide"
                 >
                     {products.map(product => (
-                         <div key={product.id} className="snap-center shrink-0 w-52 md:w-64">
+                         <div key={product.id} className="snap-center shrink-0 w-40">
                             <ObjectCard
                                 product={product}
-                                isSelected={false}
+                                isSelected={selectedProduct?.id === product.id}
                                 onClick={() => onSelect(product)}
                             />
                         </div>
                     ))}
+                    <div className="snap-center shrink-0 w-40 flex">
+                         <button
+                            onClick={onAddOwnProductClick}
+                            className="w-full h-full bg-zinc-50 hover:bg-zinc-100 text-zinc-600 font-semibold p-4 rounded-lg text-sm transition-colors border-2 border-dashed border-zinc-300 flex flex-col items-center justify-center space-y-2"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                            <span>Add Your Own</span>
+                        </button>
+                    </div>
                 </div>
                  <button 
                     onClick={() => scroll('right')}
@@ -102,14 +116,6 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({ products, onSelect, o
                     aria-label="Scroll right"
                 >
                     <ArrowRightIcon />
-                </button>
-            </div>
-            <div className="mt-8">
-                <button
-                    onClick={onAddOwnProductClick}
-                    className="bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-bold py-2 px-6 rounded-lg text-md transition-colors border border-zinc-300 shadow-sm"
-                >
-                    Add Your Own Product!
                 </button>
             </div>
         </div>

@@ -2,7 +2,7 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
 */
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { MeetingNotes } from '../types';
 
 export const summarizeTranscription = async (transcription: string): Promise<MeetingNotes> => {
@@ -115,5 +115,83 @@ export const generateImageFromPrompt = async (prompt: string, aspectRatio: strin
         throw new Error("The prompt was blocked for safety reasons. Please modify your prompt and try again.");
     }
     throw new Error("An error occurred while generating the image.");
+  }
+};
+
+export const placeObjectInScene = async (
+  markedSceneDataUrl: string,
+  productImageDataUrl: string,
+  prompt: string
+): Promise<string> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+  
+  const dataUrlToPart = (dataUrl: string) => {
+    const [meta, base64Data] = dataUrl.split(',');
+    const mimeType = meta.match(/:(.*?);/)?.[1] || 'image/png';
+    return {
+      inlineData: {
+        data: base64Data,
+        mimeType,
+      },
+    };
+  };
+
+  const markedScenePart = dataUrlToPart(markedSceneDataUrl);
+  
+  const productResponse = await fetch(productImageDataUrl);
+  const productBlob = await productResponse.blob();
+  const productBase64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(productBlob);
+  });
+  
+  const productPart = {
+      inlineData: {
+          data: productBase64,
+          mimeType: productBlob.type,
+      }
+  };
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-image-preview',
+      contents: {
+        parts: [
+          markedScenePart,
+          productPart,
+          { text: prompt },
+        ],
+      },
+      config: {
+        responseModalities: [Modality.IMAGE, Modality.TEXT],
+      },
+    });
+
+    for (const part of response.candidates[0].content.parts) {
+      if (part.inlineData) {
+        return part.inlineData.data;
+      }
+    }
+    
+    const textResponse = response.text;
+    if (textResponse) {
+        throw new Error(`The AI responded with text instead of an image: "${textResponse.trim()}"`);
+    }
+
+    throw new Error("Image generation failed. The model did not return an image part.");
+
+  } catch (error) {
+    console.error("Error placing object in scene with Gemini:", error);
+     if (error instanceof Error) {
+        if (error.message.includes('prompt was blocked') || error.message.includes('SAFETY')) {
+            throw new Error("The request was blocked for safety reasons. This can happen with images as well as text.");
+        }
+        if (error.message.toLowerCase().includes('fetch failed') || error.message.toLowerCase().includes('network')) {
+            throw new Error("Image generation failed due to a network issue. Please check your internet connection.");
+        }
+    }
+    throw new Error("An error occurred while editing the image.");
   }
 };
